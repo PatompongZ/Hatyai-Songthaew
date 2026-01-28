@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hatyai Songthaew Live | ติดตามรถสองแถวหาดใหญ่</title>
+
+    <!-- Meta for SEO -->
+    <meta name="description"
+        content="ระบบติดตามรถสองแถวหาดใหญ่แบบ Real-time ตรวจสอบพิกัด เวลาที่คาดว่าจะมาถึง และค่าโดยสาร">
+    <meta name="keywords" content="รถสองแถวหาดใหญ่, ติดตามรถ, ขนส่งหาดใหญ่, Hatyai Songthaew">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Role Selector Overlay - ม่านบังหน้าจอเพื่อเลือกโหมด -->
+    <div id="role-overlay" class="role-overlay">
+        <img src="logo.png" alt="Logo" style="width: 100px; border-radius: 20px; margin-bottom: 20px;">
+        <h1 style="font-size: 2.5rem; color: var(--dark); margin-bottom: 10px;">ยินดีต้อนรับสู่ Hatyai Live</h1>
+        <p style="font-size: 1.1rem; color: #636366; margin-bottom: 30px;">ระบบติดตามรถสองแถวอัจฉริยะ (Demo)</p>
+        <div class="role-container">
+            <button class="role-btn passenger" onclick="setRole('passenger')">
+                <span style="font-size: 2rem;">👤</span>
+                ฉันคือผู้โดยสาร
+            </button>
+            <button class="role-btn driver" onclick="setRole('driver')">
+                <span style="font-size: 2rem;">🛺</span>
+                ฉันคือคนขับรถ
+            </button>
+        </div>
+    </div>
+
+    <!-- Driver Notification -->
+    <div id="driver-notif" class="driver-notif">
+        🔔 มีคนกดกริ่ง! กรุณาจอดรับ/ส่งที่จุดหมาย
+        <button onclick="dismissNotif()"
+            style="margin-left:10px; border:none; background:white; border-radius:10px; padding:2px 10px; color:red; cursor:pointer;">รับทราบ</button>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="header">
+            <div class="logo-container">
+                <img src="logo.png" alt="Hatyai Songthaew Live Logo"
+                    style="width: 50px; height: 50px; border-radius: 12px; object-fit: cover;">
+                <div>
+                    <h1 id="app-title">Hatyai Live</h1>
+                    <p id="app-subtitle">Songthaew Tracking System</p>
+                </div>
+            </div>
+            <p id="role-text">เลือกสายรถที่ต้องการติดตาม</p>
+        </div>
+
+        <div class="route-selector">
+            <h2 class="section-title">สายรถทั้งหมด</h2>
+            <div id="route-list">
+                <!-- Route cards will be injected by JavaScript -->
+            </div>
+
+            <!-- Route Timeline (Visible when selected) -->
+            <div id="route-timeline-container" class="hidden"
+                style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.5); border-radius: 16px;">
+                <p style="font-size: 0.8rem; font-weight: 600; color: #8E8E93; margin-bottom: 15px;">แผนผังสถานี:</p>
+                <div id="timeline" class="timeline">
+                    <!-- Steps will be injected here -->
+                </div>
+            </div>
+
+            <!-- Driver Dashboard (Visible only for Drivers) -->
+            <div id="driver-dashboard" class="hidden"
+                style="margin-top: 20px; padding: 15px; background: var(--dark); color: white; border-radius: 16px;">
+                <p style="font-size: 0.9rem; font-weight: 500; margin-bottom: 12px; color: var(--secondary);">📊
+                    แผงสรุปรายได้ (IoT Dashboard)</p>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-size: 0.8rem; opacity: 0.8;">ผู้โดยสารรอบนี้:</span>
+                    <span id="driver-passenger-count" style="font-weight: 600; color: var(--secondary);">0 คน</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 0.8rem; opacity: 0.8;">ยอดเงินประมาณการ:</span>
+                    <span id="driver-revenue" style="font-weight: 600; color: var(--success);">0 บาท</span>
+                </div>
+            </div>
+
+            <!-- Passenger Actions -->
+            <div id="passenger-actions" class="hidden"
+                style="margin-top: 20px; padding: 15px; background: white; border-radius: 16px;">
+                <p style="font-size: 0.9rem; margin-bottom: 10px; font-weight: 500;">เครื่องมือสมาชิก (IoT):</p>
+                <div class="action-box" style="flex-wrap: wrap; gap: 10px;">
+                    <button class="btn-action btn-bell" onclick="ringBell()" style="min-width: 45%;">
+                        🔔 กดกริ่ง
+                    </button>
+                    <button class="btn-action btn-pickup" id="pickup-btn" onclick="startPinning('pickup')"
+                        style="min-width: 45%; background: var(--secondary); color: var(--dark);">
+                        1. 🚕 ปักจุดรับ
+                    </button>
+                    <button class="btn-action btn-pin hidden" id="pin-btn" onclick="startPinning('destination')"
+                        style="min-width: 45%;">
+                        2. 📍 ปักจุดลง
+                    </button>
+                    <button class="btn-action btn-checkin" onclick="checkIn()"
+                        style="min-width: 45%; background: var(--success); color: white;">
+                        ✅ ขึ้นรถแล้ว
+                    </button>
+                    <button class="btn-action btn-sos" onclick="triggerSOS()"
+                        style="min-width: 100%; background: #000; color: #FFF;">
+                        🚨 SOS แจ้งเหตุฉุกเฉิน
+                    </button>
+                </div>
+                <p id="pin-instruction" style="font-size: 0.8rem; color: #8E8E93; margin-top: 8px; display: none;">
+                    คลิกบนแผนที่เพื่อเลือกจุดหมาย...</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Map Area -->
+    <main id="map"></main>
+
+    <!-- Floating Info Card -->
+    <div id="info-card" class="floating-card">
+        <div class="card-title">
+            <span id="display-name">รถสองแถว</span>
+            <span id="display-eta" class="eta-badge">-- นาที</span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">สถานีปัจจุบัน:</span>
+            <span class="detail-value" id="display-status">รอเลือกสายรถ</span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">ที่นั่งว่าง (IoT):</span>
+            <span class="detail-value" id="display-seats" style="color: var(--success); font-weight: bold;">--
+                ที่นั่ง</span>
+        </div>
+
+        <div class="detail-row">
+            <span class="detail-label">ค่าโดยสาร:</span>
+            <span class="detail-value fare-tag" id="display-fare">-- บาท</span>
+        </div>
+
+        <div class="detail-row" style="margin-top: 15px; border-top: 1px solid #EEE; padding-top: 15px;">
+            <span class="detail-label"><span class="pulse-dot"></span> ข้อมูลจราจร:</span>
+            <span class="detail-value" id="current-location-text" style="color: var(--primary);">กำลังค้นหาสัญญาณ
+                GPS...</span>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Firebase SDK (Compat version for easier demo integration) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
